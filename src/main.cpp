@@ -22,6 +22,16 @@ void print_array_hex(unsigned char *buffer, unsigned int length);
 void bootstrap_fontset(unsigned char *ram);
 unsigned int read_rom(unsigned char **rom);
 
+union opCode_t
+{
+    unsigned long op;
+    struct
+    {
+        short hi;
+        short lo;
+    };
+} opCode;
+
 int main()
 {
     unsigned char *rom;
@@ -38,7 +48,10 @@ int main()
 
     while (true)
     {
-        // Step
+        opCode.hi = rom[PC];
+        opCode.lo = rom[PC + 1];
+        cout << opCode.op;
+        cout << endl;
     }
 
     return 0;
