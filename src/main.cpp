@@ -18,18 +18,21 @@ unsigned char DT, ST, SP;
 unsigned short I;
 unsigned short PC;
 
+unsigned char *decode_register(unsigned char register_hex);
+unsigned int read_rom(unsigned char **rom);
 void print_array_hex(unsigned char *buffer, unsigned int length);
 void bootstrap_fontset(unsigned char *ram);
-unsigned int read_rom(unsigned char **rom);
+void print_registers();
+void execute_opcode();
 
 union opCode_t
 {
-    unsigned long op;
     struct
     {
-        short hi;
-        short lo;
+        unsigned char lo;
+        unsigned char hi;
     };
+    unsigned short hl;
 } opCode;
 
 int main()
@@ -37,24 +40,98 @@ int main()
     unsigned char *rom;
     unsigned int rom_size = read_rom(&rom);
     bootstrap_fontset(ram);
-    // print_array_hex(rom, rom_size);
-    // print_array_hex(ram, RAM_LENGTH);
+    print_array_hex(rom, rom_size);
+    print_array_hex(ram, RAM_LENGTH);
 
     cout << "ram length: " << sizeof(ram) << endl;
     cout << "stack length: " << sizeof(stack) << endl;
-    cout << "char length: " << sizeof(V0) << endl;
-    cout << "short length: " << sizeof(I) << endl;
-    cout << "chip8" << endl;
 
     while (true)
     {
         opCode.hi = rom[PC];
         opCode.lo = rom[PC + 1];
-        cout << opCode.op;
+        cout << setfill('0') << setw(2) << hex << opCode.hl << dec << endl;
+        // cout << setfill('0') << setw(2) << hex << (int)opCode.hi << dec << endl;
+        // cout << setfill('0') << setw(2) << hex << (int)opCode.lo << dec << endl;
         cout << endl;
+        execute_opcode();
+        print_registers();
     }
 
     return 0;
+}
+
+void execute_opcode()
+{
+    switch (opCode.hl & 0xF000)
+    {
+    // 6xkk - LD Vx, byte
+    case 0x6000:
+    {
+        unsigned char *reg = decode_register((opCode.hl & 0x0F00) >> 8);
+        *reg = opCode.hl & 0x00FF;
+        break;
+    }
+    default:
+        // cout << "unknown opcode: 0x" << setfill('0') << setw(2) << hex << (int)(opCode.hl & 0xF000) << dec << " " << endl;
+        break;
+    }
+}
+
+unsigned char *decode_register(unsigned char register_hex)
+{
+    switch (register_hex)
+    {
+    case 0x01:
+        return &V1;
+        break;
+    case 0x02:
+        return &V2;
+        break;
+    case 0x03:
+        return &V3;
+        break;
+    case 0x04:
+        return &V4;
+        break;
+    case 0x05:
+        return &V5;
+        break;
+    case 0x06:
+        return &V6;
+        break;
+    case 0x07:
+        return &V7;
+        break;
+    case 0x08:
+        return &V8;
+        break;
+    case 0x09:
+        return &V9;
+        break;
+    case 0x0A:
+        return &VA;
+        break;
+    case 0x0B:
+        return &VB;
+        break;
+    case 0x0C:
+        return &VC;
+        break;
+    case 0x0D:
+        return &VD;
+        break;
+    case 0x0E:
+        return &VE;
+        break;
+    case 0x0F:
+        return &VF;
+        break;
+    default:
+        cout << "unknown register_hex: 0x" << setfill('0') << setw(2) << hex << (int)register_hex << dec << " " << endl;
+        return nullptr;
+        break;
+    }
 }
 
 unsigned int read_rom(unsigned char **rom)
@@ -68,7 +145,6 @@ unsigned int read_rom(unsigned char **rom)
     file.read((char *)*rom, size);
     file.close();
 
-    cout << "the complete file is in a buffer" << endl;
     if (rom == nullptr)
         cout << "Error: memory could not be allocated" << endl;
 
@@ -88,6 +164,26 @@ void print_array_hex(unsigned char *buffer, unsigned int length)
         cout << setfill('0') << setw(2) << hex << (0xFF & (buffer[i])) << dec << " ";
     }
     cout << "|" << endl;
+}
+
+void print_registers()
+{
+    cout << "V0:" << setfill('0') << setw(2) << hex << (int)V0 << dec << " ";
+    cout << "V1:" << setfill('0') << setw(2) << hex << (int)V1 << dec << " ";
+    cout << "V2:" << setfill('0') << setw(2) << hex << (int)V2 << dec << " ";
+    cout << "V3:" << setfill('0') << setw(2) << hex << (int)V3 << dec << " ";
+    cout << "V4:" << setfill('0') << setw(2) << hex << (int)V4 << dec << " ";
+    cout << "V5:" << setfill('0') << setw(2) << hex << (int)V5 << dec << " ";
+    cout << "V6:" << setfill('0') << setw(2) << hex << (int)V6 << dec << " ";
+    cout << "V7:" << setfill('0') << setw(2) << hex << (int)V7 << dec << " " << endl;
+    cout << "V8:" << setfill('0') << setw(2) << hex << (int)V8 << dec << " ";
+    cout << "V9:" << setfill('0') << setw(2) << hex << (int)V9 << dec << " ";
+    cout << "VA:" << setfill('0') << setw(2) << hex << (int)VA << dec << " ";
+    cout << "VB:" << setfill('0') << setw(2) << hex << (int)VB << dec << " ";
+    cout << "VC:" << setfill('0') << setw(2) << hex << (int)VC << dec << " ";
+    cout << "VD:" << setfill('0') << setw(2) << hex << (int)VD << dec << " ";
+    cout << "VE:" << setfill('0') << setw(2) << hex << (int)VE << dec << " ";
+    cout << "VF:" << setfill('0') << setw(2) << hex << (int)VF << dec << " " << endl;
 }
 
 void bootstrap_fontset(unsigned char *ram)
