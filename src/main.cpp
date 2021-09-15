@@ -26,8 +26,8 @@ int main()
 {
     unsigned char *rom;
     unsigned int rom_size = read_rom(&rom);
-    print_array_hex(rom, rom_size);
     bootstrap_fontset(ram);
+    // print_array_hex(rom, rom_size);
     // print_array_hex(ram, RAM_LENGTH);
 
     cout << "ram length: " << sizeof(ram) << endl;
@@ -50,16 +50,15 @@ unsigned int read_rom(unsigned char **rom)
     ifstream file("./roms/PONG", ios::in | ios::binary | ios::ate);
     size = file.tellg();
     file.seekg(0, ios::beg);
-    cout << size << endl;
+
     *rom = new unsigned char[size];
-    file.read((char *)rom, size);
+    file.read((char *)*rom, size);
     file.close();
 
     cout << "the complete file is in a buffer" << endl;
     if (rom == nullptr)
         cout << "Error: memory could not be allocated" << endl;
 
-    // print_array_hex(*rom, size);
     return (unsigned int)size;
 }
 
