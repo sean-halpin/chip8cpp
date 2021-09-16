@@ -73,6 +73,7 @@ void execute_opcode()
         PC += 2;
         break;
     }
+    // Annn - LD I, addr
     case 0xA000:
     {
         I = opCode.hl & 0x0FFF;
