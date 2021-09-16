@@ -50,7 +50,7 @@ int main()
     {
         opCode.hi = rom[PC];
         opCode.lo = rom[PC + 1];
-        cout << setfill('0') << setw(2) << hex << opCode.hl << dec << endl;
+        // cout << setfill('0') << setw(4) << hex << opCode.hl << dec << endl;
         // cout << setfill('0') << setw(2) << hex << (int)opCode.hi << dec << endl;
         // cout << setfill('0') << setw(2) << hex << (int)opCode.lo << dec << endl;
         cout << endl;
@@ -70,10 +70,18 @@ void execute_opcode()
     {
         unsigned char *reg = decode_register((opCode.hl & 0x0F00) >> 8);
         *reg = opCode.hl & 0x00FF;
+        PC += 2;
+        break;
+    }
+    case 0xA000:
+    {
+        I = opCode.hl & 0x0FFF;
+        PC += 2;
         break;
     }
     default:
-        // cout << "unknown opcode: 0x" << setfill('0') << setw(2) << hex << (int)(opCode.hl & 0xF000) << dec << " " << endl;
+        cerr << "unknown opcode: 0x" << setfill('0') << setw(4) << hex << (int)(opCode.hl & 0xFFFF) << dec << " " << endl;
+        throw std::exception();
         break;
     }
 }
@@ -128,8 +136,8 @@ unsigned char *decode_register(unsigned char register_hex)
         return &VF;
         break;
     default:
-        cout << "unknown register_hex: 0x" << setfill('0') << setw(2) << hex << (int)register_hex << dec << " " << endl;
-        return nullptr;
+        cerr << "unknown register_hex: 0x" << setfill('0') << setw(2) << hex << (int)register_hex << dec << " " << endl;
+        throw std::exception();
         break;
     }
 }
@@ -184,6 +192,8 @@ void print_registers()
     cout << "VD:" << setfill('0') << setw(2) << hex << (int)VD << dec << " ";
     cout << "VE:" << setfill('0') << setw(2) << hex << (int)VE << dec << " ";
     cout << "VF:" << setfill('0') << setw(2) << hex << (int)VF << dec << " " << endl;
+    cout << "PC:" << setfill('0') << setw(2) << hex << (int)PC << dec << " " << endl;
+    cout << "I:" << setfill('0') << setw(2) << hex << (int)I << dec << " " << endl;
 }
 
 void bootstrap_fontset(unsigned char *ram)
