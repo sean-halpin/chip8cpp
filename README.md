@@ -14,7 +14,7 @@ mkdir -p ./bin && g++ -pedantic -Wall -g -std=c++14 ./src/main.cpp -o ./bin/main
 
 The chip-8 video frame is visualized in ascii, followed by a printout of the registers.
 
-[image](./media/chip8_screen.png)
+![image](./media/chip8_screen.png)
 
 ## Resources
 
