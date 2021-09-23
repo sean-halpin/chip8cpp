@@ -10,11 +10,10 @@ using namespace std;
 #define STACK_LENGTH 16
 #define ROM_OFFSET 0x200
 // Memory
-bool video_frame[SCREEN_WIDTH][SCREEN_HEIGHT];
+unsigned char video_frame[SCREEN_WIDTH][SCREEN_HEIGHT];
 unsigned char ram[RAM_LENGTH];
 unsigned short stack[STACK_LENGTH];
 // Registers
-// V0, V1, V2, V3, V4, V5, V6, V7, V8, V9, VA, VB, VC, VD, VE, VF;
 unsigned char V[16];
 unsigned char DT, ST, SP;
 unsigned short I;
@@ -26,7 +25,9 @@ void bootstrap_fontset(unsigned char *ram);
 void print_video_frame();
 void print_registers();
 void execute_opcode();
-void error();
+void diagnostics();
+void clr();
+void error(const char *);
 
 union opCode_t
 {
@@ -46,15 +47,15 @@ int main()
     std::copy(rom, rom + rom_size, ram + ROM_OFFSET);
     PC = ROM_OFFSET;
 
-    while (true)
+    int max_cycles = 1000;
+    while (max_cycles--)
     {
         op.hi = ram[PC];
         op.lo = ram[PC + 1];
-        cout << endl;
-        cout << "opCode: " << setfill('0') << setw(4) << hex << op.code << dec << endl;
+        diagnostics();
         execute_opcode();
     }
-
+    diagnostics();
     return 0;
 }
 
@@ -62,13 +63,50 @@ void execute_opcode()
 {
     switch (op.code & 0xF000)
     {
+    case 0x0000:
+    {
+        switch (op.code & 0x00FF)
+        {
+        // 00EE - RET
+        case 0xEE:
+            PC = stack[--SP] + 2;
+            break;
+        default:
+            error("");
+            break;
+        }
+        break;
+    }
+    // 1nnn - JP addr
+    case 0x1000:
+    {
+        unsigned short nnn = op.code & 0x0FFF;
+        PC = nnn;
+    }
     // 2nnn - CALL addr
     case 0x2000:
     {
+        if (SP == STACK_LENGTH)
+            error("StackOverflow");
         unsigned short nnn = op.code & 0x0FFF;
-        SP++;
-        stack[SP] = PC;
+        stack[SP++] = PC;
         PC = nnn;
+        break;
+    }
+    // 3xkk - SE Vx, byte
+    case 0x3000:
+    {
+        unsigned char x = (op.code & 0x0F00) >> 8;
+        unsigned char kk = op.code & 0x00FF;
+        PC += (V[x] == kk) ? 4 : 2;
+        break;
+    }
+    // 4xkk - SNE Vx, byte
+    case 0x4000:
+    {
+        unsigned char x = (op.code & 0x0F00) >> 8;
+        unsigned char kk = op.code & 0x00FF;
+        PC += (V[x] != kk) ? 4 : 2;
         break;
     }
     // 6xkk - LD Vx, byte
@@ -77,6 +115,15 @@ void execute_opcode()
         unsigned char x = (op.code & 0x0F00) >> 8;
         unsigned char kk = op.code & 0x00FF;
         V[x] = kk;
+        PC += 2;
+        break;
+    }
+    // 7xkk - ADD Vx, byte
+    case 0x7000:
+    {
+        unsigned char x = (op.code & 0x0F00) >> 8;
+        unsigned char kk = op.code & 0x00FF;
+        V[x] += kk;
         PC += 2;
         break;
     }
@@ -94,32 +141,59 @@ void execute_opcode()
         unsigned char y = (op.code & 0x00F0) >> 4;
         unsigned char n = (op.code & 0x000F);
 
+        unsigned char vf = 0x00;
+
+        unsigned char coord_x = V[x];
+        unsigned char coord_y = V[y];
+
         unsigned char m = 0b10000000;
-        for (int h = x; h < x + n; h++)
+        for (unsigned char h = 0; h < n; h++)
         {
-            for (int w = y; w < y + 8; w++)
+            m = 0b10000000;
+            for (unsigned char w = 0; w < 8; w++)
             {
-                if ((ram[I] & m) > 0) // Draw a pixel
+                if ((ram[I + h] & m) > 0) // Draw a pixel
                 {
-                    if (video_frame[w][h]) // Pixel already set, set VF to 1
+                    cout << "w:" << w << "\th:" << h << endl;
+                    if (video_frame[coord_x + w][coord_y + h]) // Pixel already set, set VF to 1
                     {
-                        V[0xF] = 0x01;
+                        vf = 0x01;
                     }
-                    video_frame[w][h] = !video_frame[w][h];
+                    video_frame[coord_x + w][coord_y + h] ^= 1;
                 }
                 m >>= 1;
             }
-            m = 0b10000000;
         }
-
+        V[0xF] = vf;
         PC += 2;
         break;
     }
     case 0xF000:
     {
-        unsigned char x = (op.code & 0x0F00) >> 8;
+        unsigned const char x = (op.code & 0x0F00) >> 8;
         switch (op.code & 0x00FF)
         {
+        case 0x0007:
+        {
+            // Fx07 - LD Vx, DT
+            V[x] = DT;
+            PC += 2;
+            break;
+        }
+        case 0x0015:
+        {
+            // Fx15 - LD DT, Vx
+            DT = V[x];
+            PC += 2;
+            break;
+        }
+        case 0x001E:
+        {
+            // Fx1E - ADD I, Vx
+            I += V[x];
+            PC += 2;
+            break;
+        }
         case 0x0029:
         {
             // Fx29 - LD F, Vx
@@ -148,26 +222,46 @@ void execute_opcode()
             break;
         }
         default:
-            error();
+            error("");
             break;
         }
         break;
     }
     default:
-        error();
+        error("");
         break;
     }
 }
 
-void error()
+void clr()
 {
-    print_array_hex(ram, RAM_LENGTH);
+    {
+#if defined _WIN32
+        system("cls");
+        //clrscr(); // including header file : conio.h
+#elif defined(__LINUX__) || defined(__gnu_linux__) || defined(__linux__)
+        system("clear");
+        //std::cout<< u8"\033[2J\033[1;1H"; //Using ANSI Escape Sequences
+#elif defined(__APPLE__)
+        system("clear");
+#endif
+    }
+}
+
+void diagnostics()
+{
+    // clr();
+    // print_array_hex(ram, RAM_LENGTH);
     cout << "ram length: " << sizeof(ram) << endl;
     print_video_frame();
     print_registers();
-    cerr << "unknown opcode: 0x" << setfill('0') << setw(4) << hex << (int)(op.code & 0xFFFF) << dec << " " << endl
-         << endl;
-    throw std::exception();
+    cout << "opCode: " << setfill('0') << setw(4) << hex << op.code << dec << endl;
+}
+
+void error(const char *msg)
+{
+    diagnostics();
+    throw std::runtime_error(msg);
 }
 
 unsigned int read_rom(unsigned char **rom)
@@ -189,7 +283,7 @@ unsigned int read_rom(unsigned char **rom)
 
 void print_array_hex(unsigned char *buffer, unsigned int length)
 {
-    for (int i = 0; i < length; i++)
+    for (unsigned int i = 0; i < length; i++)
     {
         if (i % 32 == 0)
         {
@@ -242,6 +336,7 @@ void print_registers()
     cout << "VE:" << setfill('0') << setw(2) << hex << (int)(V[0x0E]) << dec << " ";
     cout << "VF:" << setfill('0') << setw(2) << hex << (int)(V[0x0F]) << dec << " " << endl;
     cout << "PC:" << setfill('0') << setw(4) << hex << (int)PC << dec << " " << endl;
+    cout << "SP:" << setfill('0') << setw(4) << hex << (int)SP << dec << " " << endl;
     cout << "I:" << setfill('0') << setw(4) << hex << (int)I << dec << " " << endl;
 }
 
