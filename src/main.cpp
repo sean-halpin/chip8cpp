@@ -117,16 +117,33 @@ void execute_opcode()
     }
     case 0xF000:
     {
+        unsigned char x = (op.code & 0x0F00) >> 8;
         switch (op.code & 0x00FF)
         {
+        case 0x0029:
+        {
+            // Fx29 - LD F, Vx
+            I = V[x] * 5; // Since each sprite is 5 bytes long
+            PC += 2;
+            break;
+        }
         case 0x0033:
         {
             // Fx33 - LD B, Vx
-            unsigned char x = (op.code & 0x0F00) >> 8;
             unsigned char vx = V[x];
             ram[I] = vx / 100;
             ram[I + 1] = (vx % 100) / 10;
             ram[I + 2] = vx % 10;
+            PC += 2;
+            break;
+        }
+        case 0x0065:
+        {
+            // Fx65 - LD Vx, [I]
+            for (int i = 0; i < x; i++)
+            {
+                V[i] = ram[I + x];
+            }
             PC += 2;
             break;
         }
