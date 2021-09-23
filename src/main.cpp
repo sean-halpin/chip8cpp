@@ -7,7 +7,7 @@ using namespace std;
 #define RAM_LENGTH 4096
 #define SCREEN_WIDTH 64
 #define SCREEN_HEIGHT 32
-#define STACK_LENGTH 16
+#define STACK_LENGTH 0x40
 #define ROM_OFFSET 0x200
 // Memory
 unsigned char video_frame[SCREEN_WIDTH][SCREEN_HEIGHT];
@@ -86,11 +86,12 @@ void execute_opcode()
     // 2nnn - CALL addr
     case 0x2000:
     {
-        if (SP == STACK_LENGTH)
+        if (SP >= STACK_LENGTH)
             error("StackOverflow");
         unsigned short nnn = op.code & 0x0FFF;
-        stack[SP++] = PC;
+        stack[SP] = PC;
         PC = nnn;
+        SP++;
         break;
     }
     // 3xkk - SE Vx, byte
@@ -267,7 +268,7 @@ void error(const char *msg)
 unsigned int read_rom(unsigned char **rom)
 {
     long size = 0;
-    ifstream file("./roms/PONG", ios::in | ios::binary | ios::ate);
+    ifstream file("./roms/INVADERS", ios::in | ios::binary | ios::ate);
     size = file.tellg();
     file.seekg(0, ios::beg);
 
