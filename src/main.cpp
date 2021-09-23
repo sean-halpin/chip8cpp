@@ -10,9 +10,9 @@ using namespace std;
 #define STACK_LENGTH 16
 #define ROM_OFFSET 0x200
 // Memory
+bool video_frame[SCREEN_WIDTH][SCREEN_HEIGHT];
 unsigned char ram[RAM_LENGTH];
 unsigned short stack[STACK_LENGTH];
-unsigned char video_frame[SCREEN_WIDTH][SCREEN_HEIGHT];
 // Registers
 // V0, V1, V2, V3, V4, V5, V6, V7, V8, V9, VA, VB, VC, VD, VE, VF;
 unsigned char V[16];
@@ -23,6 +23,7 @@ unsigned short PC;
 unsigned int read_rom(unsigned char **rom);
 void print_array_hex(unsigned char *buffer, unsigned int length);
 void bootstrap_fontset(unsigned char *ram);
+void print_video_frame();
 void print_registers();
 void execute_opcode();
 void error();
@@ -83,6 +84,25 @@ void execute_opcode()
         unsigned char x = (opCode.hl & 0x0F00) >> 8;
         unsigned char y = (opCode.hl & 0x00F0) >> 4;
         unsigned char n = (opCode.hl & 0x000F);
+
+        unsigned char m = 0b10000000;
+        for (int h = x; h < x + n; h++)
+        {
+            for (int w = y; w < y + 8; w++)
+            {
+                if ((ram[I] & m) > 0) // Draw a pixel
+                {
+                    if (video_frame[w][h]) // Pixel already set, set VF to 1
+                    {
+                        V[0xF] = 0x01;
+                    }
+                    video_frame[w][h] = !video_frame[w][h];
+                }
+                m >>= 1;
+            }
+            m = 0b10000000;
+        }
+
         PC += 2;
         break;
     }
@@ -96,7 +116,7 @@ void error()
 {
     print_array_hex(ram, RAM_LENGTH);
     cout << "ram length: " << sizeof(ram) << endl;
-
+    print_video_frame();
     print_registers();
     cerr << "unknown opcode: 0x" << setfill('0') << setw(4) << hex << (int)(opCode.hl & 0xFFFF) << dec << " " << endl
          << endl;
@@ -134,6 +154,26 @@ void print_array_hex(unsigned char *buffer, unsigned int length)
     }
     cout << "|" << endl
          << endl;
+}
+
+void print_video_frame()
+{
+    for (int h = 0; h < SCREEN_HEIGHT; h++)
+    {
+        for (int w = 0; w < SCREEN_WIDTH; w++)
+        {
+            if (video_frame[w][h])
+            {
+                cout << "x";
+            }
+            else
+            {
+                cout << "-";
+            }
+        }
+        cout << "|" << endl;
+    }
+    cout << endl;
 }
 
 void print_registers()
