@@ -8,17 +8,18 @@ using namespace std;
 #define SCREEN_WIDTH 64
 #define SCREEN_HEIGHT 32
 #define STACK_LENGTH 16
+#define ROM_OFFSET 0x200
 // Memory
 unsigned char ram[RAM_LENGTH];
 unsigned short stack[STACK_LENGTH];
 unsigned char video_frame[SCREEN_WIDTH][SCREEN_HEIGHT];
 // Registers
-unsigned char V0, V1, V2, V3, V4, V5, V6, V7, V8, V9, VA, VB, VC, VD, VE, VF;
+// V0, V1, V2, V3, V4, V5, V6, V7, V8, V9, VA, VB, VC, VD, VE, VF;
+unsigned char V[16];
 unsigned char DT, ST, SP;
 unsigned short I;
 unsigned short PC;
 
-unsigned char *decode_register(unsigned char register_hex);
 unsigned int read_rom(unsigned char **rom);
 void print_array_hex(unsigned char *buffer, unsigned int length);
 void bootstrap_fontset(unsigned char *ram);
@@ -40,20 +41,20 @@ int main()
     unsigned char *rom;
     unsigned int rom_size = read_rom(&rom);
     bootstrap_fontset(ram);
+    std::copy(rom, rom + rom_size, ram + ROM_OFFSET);
+    PC = ROM_OFFSET;
+
     print_array_hex(rom, rom_size);
     print_array_hex(ram, RAM_LENGTH);
-
     cout << "ram length: " << sizeof(ram) << endl;
     cout << "stack length: " << sizeof(stack) << endl;
 
     while (true)
     {
-        opCode.hi = rom[PC];
-        opCode.lo = rom[PC + 1];
-        // cout << setfill('0') << setw(4) << hex << opCode.hl << dec << endl;
-        // cout << setfill('0') << setw(2) << hex << (int)opCode.hi << dec << endl;
-        // cout << setfill('0') << setw(2) << hex << (int)opCode.lo << dec << endl;
+        opCode.hi = ram[PC];
+        opCode.lo = ram[PC + 1];
         cout << endl;
+        cout << "opCode: " << setfill('0') << setw(4) << hex << opCode.hl << dec << endl;
         execute_opcode();
         print_registers();
     }
@@ -68,8 +69,9 @@ void execute_opcode()
     // 6xkk - LD Vx, byte
     case 0x6000:
     {
-        unsigned char *reg = decode_register((opCode.hl & 0x0F00) >> 8);
-        *reg = opCode.hl & 0x00FF;
+        unsigned char x = (opCode.hl & 0x0F00) >> 8;
+        unsigned char kk = opCode.hl & 0x00FF;
+        V[x] = kk;
         PC += 2;
         break;
     }
@@ -80,64 +82,16 @@ void execute_opcode()
         PC += 2;
         break;
     }
+    // Dxyn - DRW Vx, Vy, nibble
+    case 0xD000:
+    {
+        unsigned char x = (opCode.hl & 0x0F00) >> 8;
+        unsigned char y = (opCode.hl & 0x00F0) >> 4;
+        unsigned char n = (opCode.hl & 0x000F);
+        PC += 2;
+    }
     default:
         cerr << "unknown opcode: 0x" << setfill('0') << setw(4) << hex << (int)(opCode.hl & 0xFFFF) << dec << " " << endl;
-        throw std::exception();
-        break;
-    }
-}
-
-unsigned char *decode_register(unsigned char register_hex)
-{
-    switch (register_hex)
-    {
-    case 0x01:
-        return &V1;
-        break;
-    case 0x02:
-        return &V2;
-        break;
-    case 0x03:
-        return &V3;
-        break;
-    case 0x04:
-        return &V4;
-        break;
-    case 0x05:
-        return &V5;
-        break;
-    case 0x06:
-        return &V6;
-        break;
-    case 0x07:
-        return &V7;
-        break;
-    case 0x08:
-        return &V8;
-        break;
-    case 0x09:
-        return &V9;
-        break;
-    case 0x0A:
-        return &VA;
-        break;
-    case 0x0B:
-        return &VB;
-        break;
-    case 0x0C:
-        return &VC;
-        break;
-    case 0x0D:
-        return &VD;
-        break;
-    case 0x0E:
-        return &VE;
-        break;
-    case 0x0F:
-        return &VF;
-        break;
-    default:
-        cerr << "unknown register_hex: 0x" << setfill('0') << setw(2) << hex << (int)register_hex << dec << " " << endl;
         throw std::exception();
         break;
     }
@@ -168,33 +122,34 @@ void print_array_hex(unsigned char *buffer, unsigned int length)
         {
             if (i != 0)
                 cout << "|" << endl;
-            cout << i << "\t-\t| ";
+            cout << "0x" << setfill('0') << setw(4) << hex << (int)(i) << dec << "\t-\t| ";
         }
         cout << setfill('0') << setw(2) << hex << (0xFF & (buffer[i])) << dec << " ";
     }
-    cout << "|" << endl;
+    cout << "|" << endl
+         << endl;
 }
 
 void print_registers()
 {
-    cout << "V0:" << setfill('0') << setw(2) << hex << (int)V0 << dec << " ";
-    cout << "V1:" << setfill('0') << setw(2) << hex << (int)V1 << dec << " ";
-    cout << "V2:" << setfill('0') << setw(2) << hex << (int)V2 << dec << " ";
-    cout << "V3:" << setfill('0') << setw(2) << hex << (int)V3 << dec << " ";
-    cout << "V4:" << setfill('0') << setw(2) << hex << (int)V4 << dec << " ";
-    cout << "V5:" << setfill('0') << setw(2) << hex << (int)V5 << dec << " ";
-    cout << "V6:" << setfill('0') << setw(2) << hex << (int)V6 << dec << " ";
-    cout << "V7:" << setfill('0') << setw(2) << hex << (int)V7 << dec << " " << endl;
-    cout << "V8:" << setfill('0') << setw(2) << hex << (int)V8 << dec << " ";
-    cout << "V9:" << setfill('0') << setw(2) << hex << (int)V9 << dec << " ";
-    cout << "VA:" << setfill('0') << setw(2) << hex << (int)VA << dec << " ";
-    cout << "VB:" << setfill('0') << setw(2) << hex << (int)VB << dec << " ";
-    cout << "VC:" << setfill('0') << setw(2) << hex << (int)VC << dec << " ";
-    cout << "VD:" << setfill('0') << setw(2) << hex << (int)VD << dec << " ";
-    cout << "VE:" << setfill('0') << setw(2) << hex << (int)VE << dec << " ";
-    cout << "VF:" << setfill('0') << setw(2) << hex << (int)VF << dec << " " << endl;
-    cout << "PC:" << setfill('0') << setw(2) << hex << (int)PC << dec << " " << endl;
-    cout << "I:" << setfill('0') << setw(2) << hex << (int)I << dec << " " << endl;
+    cout << "V0:" << setfill('0') << setw(2) << hex << (int)(V[0x00]) << dec << " ";
+    cout << "V1:" << setfill('0') << setw(2) << hex << (int)(V[0x01]) << dec << " ";
+    cout << "V2:" << setfill('0') << setw(2) << hex << (int)(V[0x02]) << dec << " ";
+    cout << "V3:" << setfill('0') << setw(2) << hex << (int)(V[0x03]) << dec << " ";
+    cout << "V4:" << setfill('0') << setw(2) << hex << (int)(V[0x04]) << dec << " ";
+    cout << "V5:" << setfill('0') << setw(2) << hex << (int)(V[0x05]) << dec << " ";
+    cout << "V6:" << setfill('0') << setw(2) << hex << (int)(V[0x06]) << dec << " ";
+    cout << "V7:" << setfill('0') << setw(2) << hex << (int)(V[0x07]) << dec << " " << endl;
+    cout << "V8:" << setfill('0') << setw(2) << hex << (int)(V[0x08]) << dec << " ";
+    cout << "V9:" << setfill('0') << setw(2) << hex << (int)(V[0x09]) << dec << " ";
+    cout << "VA:" << setfill('0') << setw(2) << hex << (int)(V[0x0A]) << dec << " ";
+    cout << "VB:" << setfill('0') << setw(2) << hex << (int)(V[0x0B]) << dec << " ";
+    cout << "VC:" << setfill('0') << setw(2) << hex << (int)(V[0x0C]) << dec << " ";
+    cout << "VD:" << setfill('0') << setw(2) << hex << (int)(V[0x0D]) << dec << " ";
+    cout << "VE:" << setfill('0') << setw(2) << hex << (int)(V[0x0E]) << dec << " ";
+    cout << "VF:" << setfill('0') << setw(2) << hex << (int)(V[0x0F]) << dec << " " << endl;
+    cout << "PC:" << setfill('0') << setw(4) << hex << (int)PC << dec << " " << endl;
+    cout << "I:" << setfill('0') << setw(4) << hex << (int)I << dec << " " << endl;
 }
 
 void bootstrap_fontset(unsigned char *ram)
