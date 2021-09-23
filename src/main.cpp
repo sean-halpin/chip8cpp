@@ -25,6 +25,7 @@ void print_array_hex(unsigned char *buffer, unsigned int length);
 void bootstrap_fontset(unsigned char *ram);
 void print_registers();
 void execute_opcode();
+void error();
 
 union opCode_t
 {
@@ -44,11 +45,6 @@ int main()
     std::copy(rom, rom + rom_size, ram + ROM_OFFSET);
     PC = ROM_OFFSET;
 
-    print_array_hex(rom, rom_size);
-    print_array_hex(ram, RAM_LENGTH);
-    cout << "ram length: " << sizeof(ram) << endl;
-    cout << "stack length: " << sizeof(stack) << endl;
-
     while (true)
     {
         opCode.hi = ram[PC];
@@ -56,7 +52,6 @@ int main()
         cout << endl;
         cout << "opCode: " << setfill('0') << setw(4) << hex << opCode.hl << dec << endl;
         execute_opcode();
-        print_registers();
     }
 
     return 0;
@@ -89,12 +84,23 @@ void execute_opcode()
         unsigned char y = (opCode.hl & 0x00F0) >> 4;
         unsigned char n = (opCode.hl & 0x000F);
         PC += 2;
-    }
-    default:
-        cerr << "unknown opcode: 0x" << setfill('0') << setw(4) << hex << (int)(opCode.hl & 0xFFFF) << dec << " " << endl;
-        throw std::exception();
         break;
     }
+    default:
+        error();
+        break;
+    }
+}
+
+void error()
+{
+    print_array_hex(ram, RAM_LENGTH);
+    cout << "ram length: " << sizeof(ram) << endl;
+
+    print_registers();
+    cerr << "unknown opcode: 0x" << setfill('0') << setw(4) << hex << (int)(opCode.hl & 0xFFFF) << dec << " " << endl
+         << endl;
+    throw std::exception();
 }
 
 unsigned int read_rom(unsigned char **rom)
