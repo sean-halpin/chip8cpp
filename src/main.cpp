@@ -35,8 +35,8 @@ union opCode_t
         unsigned char lo;
         unsigned char hi;
     };
-    unsigned short hl;
-} opCode;
+    unsigned short code;
+} op;
 
 int main()
 {
@@ -48,10 +48,10 @@ int main()
 
     while (true)
     {
-        opCode.hi = ram[PC];
-        opCode.lo = ram[PC + 1];
+        op.hi = ram[PC];
+        op.lo = ram[PC + 1];
         cout << endl;
-        cout << "opCode: " << setfill('0') << setw(4) << hex << opCode.hl << dec << endl;
+        cout << "opCode: " << setfill('0') << setw(4) << hex << op.code << dec << endl;
         execute_opcode();
     }
 
@@ -60,13 +60,22 @@ int main()
 
 void execute_opcode()
 {
-    switch (opCode.hl & 0xF000)
+    switch (op.code & 0xF000)
     {
+    // 2nnn - CALL addr
+    case 0x2000:
+    {
+        unsigned short nnn = op.code & 0x0FFF;
+        SP++;
+        stack[SP] = PC;
+        PC = nnn;
+        break;
+    }
     // 6xkk - LD Vx, byte
     case 0x6000:
     {
-        unsigned char x = (opCode.hl & 0x0F00) >> 8;
-        unsigned char kk = opCode.hl & 0x00FF;
+        unsigned char x = (op.code & 0x0F00) >> 8;
+        unsigned char kk = op.code & 0x00FF;
         V[x] = kk;
         PC += 2;
         break;
@@ -74,16 +83,16 @@ void execute_opcode()
     // Annn - LD I, addr
     case 0xA000:
     {
-        I = opCode.hl & 0x0FFF;
+        I = op.code & 0x0FFF;
         PC += 2;
         break;
     }
     // Dxyn - DRW Vx, Vy, nibble
     case 0xD000:
     {
-        unsigned char x = (opCode.hl & 0x0F00) >> 8;
-        unsigned char y = (opCode.hl & 0x00F0) >> 4;
-        unsigned char n = (opCode.hl & 0x000F);
+        unsigned char x = (op.code & 0x0F00) >> 8;
+        unsigned char y = (op.code & 0x00F0) >> 4;
+        unsigned char n = (op.code & 0x000F);
 
         unsigned char m = 0b10000000;
         for (int h = x; h < x + n; h++)
@@ -106,6 +115,27 @@ void execute_opcode()
         PC += 2;
         break;
     }
+    case 0xF000:
+    {
+        switch (op.code & 0x00FF)
+        {
+        case 0x0033:
+        {
+            // Fx33 - LD B, Vx
+            unsigned char x = (op.code & 0x0F00) >> 8;
+            unsigned char vx = V[x];
+            ram[I] = vx / 100;
+            ram[I + 1] = (vx % 100) / 10;
+            ram[I + 2] = vx % 10;
+            PC += 2;
+            break;
+        }
+        default:
+            error();
+            break;
+        }
+        break;
+    }
     default:
         error();
         break;
@@ -118,7 +148,7 @@ void error()
     cout << "ram length: " << sizeof(ram) << endl;
     print_video_frame();
     print_registers();
-    cerr << "unknown opcode: 0x" << setfill('0') << setw(4) << hex << (int)(opCode.hl & 0xFFFF) << dec << " " << endl
+    cerr << "unknown opcode: 0x" << setfill('0') << setw(4) << hex << (int)(op.code & 0xFFFF) << dec << " " << endl
          << endl;
     throw std::exception();
 }
