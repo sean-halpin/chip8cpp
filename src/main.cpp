@@ -7,27 +7,33 @@ using namespace std;
 #define RAM_LENGTH 4096
 #define SCREEN_WIDTH 64
 #define SCREEN_HEIGHT 32
-#define STACK_LENGTH 0x40
+#define STACK_LENGTH 0x400
 #define ROM_OFFSET 0x200
 // Memory
 unsigned char video_frame[SCREEN_WIDTH][SCREEN_HEIGHT];
 unsigned char ram[RAM_LENGTH];
 unsigned short stack[STACK_LENGTH];
 // Registers
-unsigned char V[16];
+unsigned char V[0x0F];
 unsigned char DT, ST, SP;
 unsigned short I;
 unsigned short PC;
+// Hex Keyboard
+unsigned char keyboard[0x0F];
 
 unsigned int read_rom(unsigned char **rom);
 void print_array_hex(unsigned char *buffer, unsigned int length);
 void bootstrap_fontset(unsigned char *ram);
 void print_video_frame();
+void clear_video_frame();
 void print_registers();
 void execute_opcode();
 void diagnostics();
 void clr();
 void error(const char *);
+
+unsigned int max_cycles = 10000;
+unsigned int cycles = 0;
 
 union opCode_t
 {
@@ -47,8 +53,7 @@ int main()
     std::copy(rom, rom + rom_size, ram + ROM_OFFSET);
     PC = ROM_OFFSET;
 
-    int max_cycles = 1000;
-    while (max_cycles--)
+    while (cycles++ < max_cycles)
     {
         op.hi = ram[PC];
         op.lo = ram[PC + 1];
@@ -67,12 +72,24 @@ void execute_opcode()
     {
         switch (op.code & 0x00FF)
         {
+        // 00E0 - CLS
+        case 0xE0:
+            clear_video_frame();
+            PC += 2;
+            break;
         // 00EE - RET
         case 0xEE:
-            PC = stack[--SP] + 2;
+            if (SP == 0)
+            {
+                PC += 2;
+            }
+            else
+            {
+                PC = stack[--SP] + 2;
+            }
             break;
         default:
-            error("");
+            error("Unknown 0x0000 OpCode");
             break;
         }
         break;
@@ -89,9 +106,8 @@ void execute_opcode()
         if (SP >= STACK_LENGTH)
             error("StackOverflow");
         unsigned short nnn = op.code & 0x0FFF;
-        stack[SP] = PC;
+        stack[SP++] = PC;
         PC = nnn;
-        SP++;
         break;
     }
     // 3xkk - SE Vx, byte
@@ -126,6 +142,23 @@ void execute_opcode()
         unsigned char kk = op.code & 0x00FF;
         V[x] += kk;
         PC += 2;
+        break;
+    }
+    case 0x8000:
+    {
+        unsigned char x = (op.code & 0x0F00) >> 8;
+        unsigned char y = (op.code & 0x00F0) >> 4;
+        switch (op.code & 0x000F)
+        {
+        // 8xy0 - LD Vx, Vy
+        case 0x0:
+            V[x] = V[y];
+            PC += 2;
+            break;
+        default:
+            error("Unknown 0x8000 OpCode");
+            break;
+        }
         break;
     }
     // Annn - LD I, addr
@@ -169,6 +202,25 @@ void execute_opcode()
         PC += 2;
         break;
     }
+    case 0xE000:
+    {
+        unsigned char x = (op.code & 0x0F00) >> 8;
+        switch (op.code & 0x00FF)
+        {
+        // Ex9E - SKP Vx
+        case 0x9E:
+            PC += keyboard[V[x]] == 0x01 ? 4 : 2;
+            break;
+        // ExA1 - SKNP Vx
+        case 0xA1:
+            PC += keyboard[V[x]] != 0x01 ? 4 : 2;
+            break;
+        default:
+            error("Unknown 0xE000 OpCode");
+            break;
+        }
+        break;
+    }
     case 0xF000:
     {
         unsigned const char x = (op.code & 0x0F00) >> 8;
@@ -192,6 +244,9 @@ void execute_opcode()
         {
             // Fx1E - ADD I, Vx
             I += V[x];
+            // Overflow
+            V[0xF] = (I & 0xF000) != 0 ? 1 : 0;
+            I = I & 0xFFF;
             PC += 2;
             break;
         }
@@ -223,13 +278,13 @@ void execute_opcode()
             break;
         }
         default:
-            error("");
+            error("Unknown 0xF000 OpCode");
             break;
         }
         break;
     }
     default:
-        error("");
+        error("Unknown OpCode");
         break;
     }
 }
@@ -256,6 +311,7 @@ void diagnostics()
     cout << "ram length: " << sizeof(ram) << endl;
     print_video_frame();
     print_registers();
+    cout << "cycles : " << cycles << endl;
     cout << "opCode: " << setfill('0') << setw(4) << hex << op.code << dec << endl;
 }
 
@@ -268,7 +324,7 @@ void error(const char *msg)
 unsigned int read_rom(unsigned char **rom)
 {
     long size = 0;
-    ifstream file("./roms/INVADERS", ios::in | ios::binary | ios::ate);
+    ifstream file("./roms/PONG", ios::in | ios::binary | ios::ate);
     size = file.tellg();
     file.seekg(0, ios::beg);
 
@@ -296,6 +352,17 @@ void print_array_hex(unsigned char *buffer, unsigned int length)
     }
     cout << "|" << endl
          << endl;
+}
+
+void clear_video_frame()
+{
+    for (int h = 0; h < SCREEN_HEIGHT; h++)
+    {
+        for (int w = 0; w < SCREEN_WIDTH; w++)
+        {
+            video_frame[w][h] = 0;
+        }
+    }
 }
 
 void print_video_frame()
